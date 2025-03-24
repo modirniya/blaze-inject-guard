@@ -22,7 +22,7 @@ impl CommandInjectionDetector {
 
         let suspicious_sequences = vec![
             "&&", "||", ">>", "<<", "|&", "&>", ">&",
-            "$(", "`", "${", ";", "2>", "2>&1",
+            "$(", "`", "${", ";", "2>", "2>&1", "|",
         ];
 
         let dangerous_commands = [
@@ -55,7 +55,16 @@ impl CommandInjectionDetector {
         // Check for suspicious sequences
         for seq in &self.suspicious_sequences {
             if input.contains(seq) {
-                return true;
+                // Special check for the pipe character
+                // Ensure that this is not a false positive (like in URLs)
+                if *seq == "|" {
+                    // Check if it's not part of a URL or similar structure
+                    if !input.contains("http://") && !input.contains("https://") {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
             }
         }
         

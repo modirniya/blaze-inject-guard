@@ -204,7 +204,7 @@ impl InputDetector for ReDoSDetector {
         
         // Quick checks for repetitions without regex
         if input.len() > 20 {
-            let mut chars = input.chars().collect::<Vec<_>>();
+            let chars = input.chars().collect::<Vec<_>>();
             if chars.len() > 0 {
                 let first_char = chars[0];
                 let same_char_count = chars.iter().filter(|&&c| c == first_char).count();

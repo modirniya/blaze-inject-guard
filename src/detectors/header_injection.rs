@@ -67,12 +67,12 @@ impl HeaderInjectionDetector {
     fn contains_session_hijacking(&self, input: &str) -> bool {
         let lower_input = input.to_lowercase();
         
-        (self.contains_crlf(input) && 
-         (lower_input.contains("session=") || 
-          lower_input.contains("jsessionid=") || 
-          lower_input.contains("auth=") || 
-          lower_input.contains("token=") ||
-          lower_input.contains("sid=")))
+        self.contains_crlf(input) && 
+        (lower_input.contains("session=") || 
+         lower_input.contains("cookie=") || 
+         lower_input.contains("authorization=") || 
+         lower_input.contains("token=") ||
+         lower_input.contains("sid="))
     }
     
     /// Check if the input contains URL encoded CRLF

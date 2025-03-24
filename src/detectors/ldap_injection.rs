@@ -136,6 +136,35 @@ impl LdapInjectionDetector {
         // Check for Unicode encoding
         input.contains("\\u")
     }
+
+    /// Checks for common LDAP DN patterns that might be used for injection
+    fn contains_dn_pattern(&self, input: &str) -> bool {
+        // Check for DN patterns like cn=admin,dc=example,dc=com
+        let parts: Vec<&str> = input.split(',').collect();
+        
+        // If we have multiple parts separated by commas, check if they match DN format
+        if parts.len() >= 2 {
+            let dn_attributes = ["cn=", "ou=", "dc=", "o=", "uid=", "l=", "st=", "c=", "street="];
+            let mut matches_count = 0;
+            let parts_len = parts.len(); // Store length before moving parts
+            
+            // Use &parts to avoid moving the vector
+            for part in &parts {
+                let part_lower = part.trim().to_lowercase();
+                for attr in &dn_attributes {
+                    if part_lower.starts_with(attr) {
+                        matches_count += 1;
+                        break;
+                    }
+                }
+            }
+            
+            // If most parts match DN format, it's likely a DN
+            return matches_count >= parts_len * 2 / 3;
+        }
+        
+        false
+    }
 }
 
 impl InputDetector for LdapInjectionDetector {
@@ -176,6 +205,11 @@ impl InputDetector for LdapInjectionDetector {
         
         // Check for encoding attempts
         if self.contains_encoding(input) {
+            return true;
+        }
+        
+        // Check for DN patterns (new check)
+        if self.contains_dn_pattern(input) {
             return true;
         }
         

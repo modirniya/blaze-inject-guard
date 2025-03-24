@@ -13,7 +13,6 @@ use detectors::html_injection::HtmlInjectionDetector;
 use detectors::path_traversal::PathTraversalDetector;
 use detectors::header_injection::HeaderInjectionDetector;
 use detectors::csv_injection::CsvInjectionDetector;
-use detectors::redos_injection::ReDoSDetector;
 use detectors::nosql_injection::NoSqlInjectionDetector;
 use detectors::log_injection::LogInjectionDetector;
 
