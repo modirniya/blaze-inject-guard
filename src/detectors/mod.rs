@@ -1,0 +1,13 @@
+pub mod detector_trait;
+pub mod command_injection;
+pub mod xss;
+pub mod ldap_injection;
+pub mod xml_injection;
+pub mod template_injection;
+pub mod html_injection;
+pub mod path_traversal;
+pub mod header_injection;
+pub mod csv_injection;
+pub mod redos_injection;
+pub mod nosql_injection;
+pub mod log_injection; 
