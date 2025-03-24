@@ -1,2 +1,9 @@
 fly.toml
 .git/
+target/
+Cargo.lock
+README.md
+LICENSE
+.github/
+.gitignore
+test_api.sh

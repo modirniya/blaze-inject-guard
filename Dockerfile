@@ -11,10 +11,10 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
-RUN cargo build --release --bin blaz-inject-guard
+RUN cargo build --release --bin blaze-inject-guard
 
 # We do not need the Rust toolchain to run the binary!
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
-COPY --from=builder /app/target/release/blaz-inject-guard /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/blaz-inject-guard"]
+COPY --from=builder /app/target/release/blaze-inject-guard /usr/local/bin
+ENTRYPOINT ["/usr/local/bin/blaze-inject-guard"]
