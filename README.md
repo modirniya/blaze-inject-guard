@@ -38,7 +38,7 @@ Currently implemented detection types:
 cargo run
 ```
 
-3. The API will be available at `http://127.0.0.1:8080`
+3. The API will be available at `http://0.0.0.0:8080`
 
 ## API Endpoints
 
