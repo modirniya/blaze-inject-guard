@@ -65,9 +65,9 @@ The comprehensive detection endpoint runs all available detectors on the provide
 
 Example request:
 ```bash
-curl -X POST http://localhost:8080/detect/comprehensive \
+curl -X POST http://0.0.0.0:8080/detect/comprehensive \
   -H "Content-Type: application/json" \
-  -d '{"content": "user input to check"}'
+  -d '{"content": "Hello; rm -rf /"}'
 ```
 
 Example response:
@@ -95,27 +95,14 @@ The batch detection endpoint allows you to process multiple inputs and selective
 
 Example request:
 ```bash
-curl -X POST http://localhost:8080/detect/batch \
+curl -X POST http://0.0.0.0:8080/detect/batch \
   -H "Content-Type: application/json" \
   -d '{
-    "contents": [
-      "Hello World",
-      "Hello; ls -la",
-      "<script>alert(1)</script>"
-    ],
+    "contents": ["Hello; rm -rf /", "<script>alert(1)</script>"],
     "detectors": {
       "command_injection": true,
       "xss": true,
-      "template_injection": false,
-      "path_traversal": true,
-      "csv_injection": false,
-      "redos": false,
-      "nosql_injection": false,
-      "log_injection": false,
-      "ldap_injection": false,
-      "xml_injection": false,
-      "html_injection": false,
-      "header_injection": false
+      "ldap_injection": false
     }
   }'
 ```
@@ -154,9 +141,9 @@ Detects attempts to inject OS commands into text inputs that might be passed to 
 
 Example request:
 ```bash
-curl -X POST http://localhost:8080/detect/command \
+curl -X POST http://0.0.0.0:8080/detect/command \
   -H "Content-Type: application/json" \
-  -d '{"content": "user input to check"}'
+  -d '{"content": "Hello; rm -rf /"}'
 ```
 
 Example response:
@@ -173,9 +160,9 @@ Detects attempts to inject malicious JavaScript that could execute in browsers.
 
 Example request:
 ```bash
-curl -X POST http://localhost:8080/detect/xss \
+curl -X POST http://0.0.0.0:8080/detect/xss \
   -H "Content-Type: application/json" \
-  -d '{"content": "user input to check"}'
+  -d '{"content": "<script>alert(1)</script>"}'
 ```
 
 Example response:
@@ -192,9 +179,9 @@ Detects attempts to manipulate LDAP queries through user input.
 
 Example request:
 ```bash
-curl -X POST http://localhost:8080/detect/ldap \
+curl -X POST http://0.0.0.0:8080/detect/ldap \
   -H "Content-Type: application/json" \
-  -d '{"content": "user input to check"}'
+  -d '{"content": "admin)(|(password=*)"}'
 ```
 
 Example response:

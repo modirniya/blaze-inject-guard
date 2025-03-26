@@ -94,6 +94,11 @@ struct DetectionResult {
     log_injection: Option<bool>,
 }
 
+#[derive(Serialize)]
+struct VersionResponse {
+    version: &'static str,
+}
+
 #[get("/")]
 async fn welcome() -> impl Responder {
     HttpResponse::Ok().body("Welcome to Blaz Inject Guard API!")
@@ -504,7 +509,7 @@ async fn detect_batch(payload: web::Json<BatchInputPayload>) -> impl Responder {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Blaz Inject Guard")]
 struct Opt {
-    #[structopt(short, long, default_value = "127.0.0.1")]
+    #[structopt(short, long, default_value = "0.0.0.0")]
     host: String,
     
     #[structopt(short, long, default_value = "8080")]
@@ -520,6 +525,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(welcome)
+            .service(version)
             .service(detect_command_injection)
             .service(detect_xss)
             .service(detect_ldap_injection)
@@ -547,4 +553,11 @@ async fn health() -> impl Responder {
         "status": "healthy",
         "timestamp": chrono::Utc::now().to_rfc3339()
     }))
+}
+
+#[get("/version")]
+async fn version() -> impl Responder {
+    web::Json(VersionResponse {
+        version: env!("CARGO_PKG_VERSION"),
+    })
 }

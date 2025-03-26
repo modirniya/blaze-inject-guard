@@ -1,27 +1,155 @@
 #!/bin/bash
 
-API_URL="http://localhost:8080"
+API_URL="http://0.0.0.0:8080"
+LOG_FILE="test_results_$(date +%Y-%m-%d_%H-%M-%S).log"
 
-# Function to run a test and print the result
+# Enhanced logging function
+log_test() {
+    echo "$1" | tee -a "$LOG_FILE"
+}
+
+# Function to run a test and print the result with detailed logging
 run_test() {
     local endpoint=$1
     local payload=$2
     local description=$3
     local expected_malicious=$4
+    local start_time=$(date +%s.%N)
 
-    echo "Testing $description..."
+    ((total_tests++))
+    log_test "\nTesting $description..."
     response=$(curl -s -X POST "$API_URL$endpoint" -H "Content-Type: application/json" -d "$payload")
+    local end_time=$(date +%s.%N)
+    local duration=$(echo "$end_time - $start_time" | bc)
     
-    is_malicious=$(echo $response | grep -o '"is_malicious":true')
-    
-    if [[ ! -z "$is_malicious" && "$expected_malicious" == "true" ]]; then
-        echo "TEST PASSED: Successfully detected malicious input"
-    elif [[ -z "$is_malicious" && "$expected_malicious" == "false" ]]; then
-        echo "TEST PASSED: Successfully detected safe input"
+    # Handle different response formats based on endpoint
+    if [[ $endpoint == "/detect/comprehensive" ]]; then
+        is_safe=$(echo $response | grep -o '"is_safe":false')
+        if [[ ! -z "$is_safe" && "$expected_malicious" == "true" ]] || [[ -z "$is_safe" && "$expected_malicious" == "false" ]]; then
+            log_test "✅ TEST PASSED: Successfully validated comprehensive detection (${duration}s)"
+            ((passed_tests++))
+            return 0
+        else
+            log_test "❌ TEST FAILED: Expected malicious=$expected_malicious, got response=$response (${duration}s)"
+            return 1
+        fi
+    elif [[ $endpoint == "/detect/batch" ]]; then
+        # For batch endpoint, check if any result is not safe when expecting malicious
+        if [[ "$expected_malicious" == "true" ]]; then
+            is_safe=$(echo $response | grep -o '"is_safe":false')
+            if [[ ! -z "$is_safe" ]]; then
+                log_test "✅ TEST PASSED: Successfully detected malicious input in batch (${duration}s)"
+                ((passed_tests++))
+                return 0
+            else
+                log_test "❌ TEST FAILED: Expected at least one malicious input, got response=$response (${duration}s)"
+                return 1
+            fi
+        else
+            # For safe inputs, all results should be safe
+            is_unsafe=$(echo $response | grep -o '"is_safe":false')
+            if [[ -z "$is_unsafe" ]]; then
+                log_test "✅ TEST PASSED: Successfully validated safe batch input (${duration}s)"
+                ((passed_tests++))
+                return 0
+            else
+                log_test "❌ TEST FAILED: Expected all safe inputs, got response=$response (${duration}s)"
+                return 1
+            fi
+        fi
     else
-        echo "TEST FAILED: Expected malicious=$expected_malicious, got response=$response"
+        # Original logic for individual detector endpoints
+        is_malicious=$(echo $response | grep -o '"is_malicious":true')
+        if [[ ! -z "$is_malicious" && "$expected_malicious" == "true" ]]; then
+            log_test "✅ TEST PASSED: Successfully detected malicious input (${duration}s)"
+            ((passed_tests++))
+            return 0
+        elif [[ -z "$is_malicious" && "$expected_malicious" == "false" ]]; then
+            log_test "✅ TEST PASSED: Successfully detected safe input (${duration}s)"
+            ((passed_tests++))
+            return 0
+        else
+            log_test "❌ TEST FAILED: Expected malicious=$expected_malicious, got response=$response (${duration}s)"
+            return 1
+        fi
     fi
 }
+
+# Test statistics variables
+total_tests=0
+passed_tests=0
+
+# Function to run comprehensive endpoint test
+test_comprehensive() {
+    log_test "\n=== COMPREHENSIVE ENDPOINT TESTS ==="
+    
+    # Test safe inputs
+    run_test "/detect/comprehensive" '{"content": "Hello World"}' "comprehensive - safe input" "false"
+    run_test "/detect/comprehensive" '{"content": ""}' "comprehensive - empty input" "false"
+    run_test "/detect/comprehensive" '{"content": " "}' "comprehensive - whitespace only" "false"
+    run_test "/detect/comprehensive" '{"content": "null"}' "comprehensive - null string" "false"
+    run_test "/detect/comprehensive" '{"content": "undefined"}' "comprehensive - undefined string" "false"
+    run_test "/detect/comprehensive" '{"content": "true"}' "comprehensive - boolean string" "false"
+    run_test "/detect/comprehensive" '{"content": "123456789"}' "comprehensive - numeric string" "false"
+    
+    # Test malicious inputs
+    run_test "/detect/comprehensive" '{"content": "Hello; rm -rf /"}' "comprehensive - command injection" "true"
+    run_test "/detect/comprehensive" '{"content": "<script>alert(1)</script>"}' "comprehensive - XSS attack" "true"
+    run_test "/detect/comprehensive" '{"content": "admin)(|(password=*)"}' "comprehensive - LDAP injection" "true"
+    run_test "/detect/comprehensive" '{"content": "{{7*7}}"}' "comprehensive - template injection" "true"
+    run_test "/detect/comprehensive" '{"content": "../../../etc/passwd"}' "comprehensive - path traversal" "true"
+    run_test "/detect/comprehensive" '{"content": "=CMD(\"calc.exe\")"}' "comprehensive - CSV injection" "true"
+    run_test "/detect/comprehensive" '{"content": "{\"$gt\": \"\"}"}' "comprehensive - NoSQL injection" "true"
+    run_test "/detect/comprehensive" '{"content": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' "comprehensive - ReDoS attack" "true"
+    run_test "/detect/comprehensive" '{"content": "username%0d%0amalicious_log"}' "comprehensive - Log injection" "true"
+    
+    # Test edge cases
+    run_test "/detect/comprehensive" '{"content": "\u0000malicious"}' "comprehensive - null byte injection" "true"
+    run_test "/detect/comprehensive" '{"content": "%00../../etc/passwd"}' "comprehensive - null byte path traversal" "true"
+    run_test "/detect/comprehensive" '{"content": "<![CDATA[<script>alert(1)</script>]]>"}' "comprehensive - CDATA XSS" "true"
+    run_test "/detect/comprehensive" '{"content": "SELECT * FROM users--"}' "comprehensive - SQL injection" "true"
+}
+
+# Function to run batch endpoint test
+test_batch() {
+    log_test "\n=== BATCH ENDPOINT TESTS ==="
+    
+    # Test empty cases
+    run_test "/detect/batch" '{"contents":[],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - empty contents array" "false"
+    
+    run_test "/detect/batch" '{"contents":["Hello"],"detectors":{}}' "batch - empty detectors object" "false"
+    
+    # Test safe inputs
+    run_test "/detect/batch" '{"contents":["Hello","World"],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - multiple safe inputs" "false"
+    
+    # Test malicious inputs
+    run_test "/detect/batch" '{"contents":["Hello; rm -rf /","<script>alert(1)</script>"],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - multiple malicious inputs" "true"
+    
+    # Test mixed inputs
+    run_test "/detect/batch" '{"contents":["Hello World",null,"","  "],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - mixed valid and invalid inputs" "false"
+    
+    # Test detector selection
+    run_test "/detect/batch" '{"contents":["Hello; rm -rf /"],"detectors":{"command_injection":false,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - disabled relevant detector" "false"
+    
+    # Test multiple attack types
+    run_test "/detect/batch" '{"contents":["<script>alert(1)</script>","Hello; rm -rf /"],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - multiple attack types" "true"
+    
+    # Test mixed attack types
+    run_test "/detect/batch" '{"contents":["SELECT * FROM users--","<script>alert(1)</script>","../../../etc/passwd"],"detectors":{"command_injection":true,"xss":true,"ldap_injection":true,"xml_injection":true,"template_injection":true,"html_injection":true,"path_traversal":true,"header_injection":true,"csv_injection":true,"redos":true,"nosql_injection":true,"log_injection":true}}' "batch - mixed attack types" "true"
+}
+
+# Version Test
+echo "=== VERSION TEST ==="
+version_response=$(curl -s "$API_URL/version")
+expected_version='"version":"0.1.0"'
+if [[ $version_response == *"$expected_version"* ]]; then
+    ((total_tests++))
+    ((passed_tests++))
+    log_test "✅ TEST PASSED: Version endpoint returned correct version"
+else
+    ((total_tests++))
+    log_test "❌ TEST FAILED: Version endpoint returned unexpected response: $version_response"
+fi
 
 # Command Injection Tests
 echo "=== COMMAND INJECTION TESTS ==="
@@ -140,4 +268,15 @@ run_test "/detect/log" '{"content": "username%0A{\"level\":\"error\",\"msg\":\"S
 run_test "/detect/log" '{"content": "username\\r\\n2023-05-01 - Admin privileges granted"}' "Log injection with date and admin action" "true"
 run_test "/detect/log" '{"content": "username%0D%0AWARNING: Account credentials changed"}' "Log injection with warning level" "true"
 
-echo -e "\nAll tests completed!" 
+# Run new comprehensive tests
+test_comprehensive
+test_batch
+
+# Calculate and display test statistics
+reliability_percentage=$(echo "scale=2; ($passed_tests / $total_tests) * 100" | bc)
+log_test "\n=== TEST SUMMARY ==="
+log_test "Total Tests Run: $total_tests"
+log_test "Tests Passed: $passed_tests"
+log_test "Tests Failed: $((total_tests - passed_tests))"
+log_test "Reliability Percentage: ${reliability_percentage}%"
+log_test "\nTest results have been saved to $LOG_FILE" 
