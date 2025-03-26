@@ -43,6 +43,7 @@ cargo run
 ## API Endpoints
 
 - `GET /` - Welcome endpoint
+- `GET /health` - Health check endpoint
 - `POST /detect/command` - Detect command injection in the provided input
 - `POST /detect/xss` - Detect cross-site scripting (XSS) in the provided input
 - `POST /detect/ldap` - Detect LDAP injection in the provided input
@@ -55,6 +56,97 @@ cargo run
 - `POST /detect/redos` - Detect Regular Expression DoS (ReDoS) in the provided input
 - `POST /detect/nosql` - Detect NoSQL injection in the provided input
 - `POST /detect/log` - Detect Log Injection/Log Forging in the provided input
+- `POST /detect/comprehensive` - Run all available detectors on the input
+- `POST /detect/batch` - Run selected detectors on multiple inputs
+
+### Comprehensive Detection
+
+The comprehensive detection endpoint runs all available detectors on the provided input and returns a combined result.
+
+Example request:
+```bash
+curl -X POST http://localhost:8080/detect/comprehensive \
+  -H "Content-Type: application/json" \
+  -d '{"content": "user input to check"}'
+```
+
+Example response:
+```json
+{
+  "command_injection": false,
+  "xss": false,
+  "ldap_injection": false,
+  "xml_injection": false,
+  "template_injection": false,
+  "html_injection": false,
+  "path_traversal": false,
+  "header_injection": false,
+  "csv_injection": false,
+  "redos": false,
+  "nosql_injection": false,
+  "log_injection": false,
+  "is_safe": true
+}
+```
+
+### Batch Detection
+
+The batch detection endpoint allows you to process multiple inputs and selectively run specific detectors.
+
+Example request:
+```bash
+curl -X POST http://localhost:8080/detect/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contents": [
+      "Hello World",
+      "Hello; ls -la",
+      "<script>alert(1)</script>"
+    ],
+    "detectors": {
+      "command_injection": true,
+      "xss": true,
+      "template_injection": false,
+      "path_traversal": true,
+      "csv_injection": false,
+      "redos": false,
+      "nosql_injection": false,
+      "log_injection": false,
+      "ldap_injection": false,
+      "xml_injection": false,
+      "html_injection": false,
+      "header_injection": false
+    }
+  }'
+```
+
+Example response:
+```json
+{
+  "results": [
+    {
+      "command_injection": false,
+      "xss": false,
+      "path_traversal": false,
+      "is_safe": true
+    },
+    {
+      "command_injection": true,
+      "xss": false,
+      "path_traversal": false,
+      "is_safe": false
+    },
+    {
+      "command_injection": false,
+      "xss": true,
+      "path_traversal": false,
+      "is_safe": false
+    }
+  ]
+}
+```
+
+Note: The batch detection response only includes results for the selected detectors. Detectors set to `false` in the request will not be run and their results will not appear in the response.
 
 ### Command Injection Detection
 
